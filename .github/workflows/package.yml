@@ -1,0 +1,56 @@
+name: Build Fetcher Executables
+
+on:
+  push:
+    tags:
+      - 'v*' # 只有当你推送到类似 v1.0.1 的标签时才会触发打包和发布
+
+jobs:
+  build:
+    permissions: write-all
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: fetcher.exe
+            asset_name: fetcher_windows_amd64.exe
+          - os: macos-latest
+            artifact_name: fetcher
+            asset_name: fetcher_macos_arm64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        shell: bash
+
+      - name: Build with PyInstaller
+        run: |
+          # --onefile: 导出为单文件
+          # --name: 指定程序名为 fetcher
+          # --windowed: 如果是 GUI 程序请保留，纯命令行程序可以删掉该参数
+          pyinstaller --onefile --windowed --name fetcher fetcher.py
+        shell: bash
+
+      - name: Rename for Release
+        run: |
+          mv dist/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
+        shell: bash
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.asset_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
